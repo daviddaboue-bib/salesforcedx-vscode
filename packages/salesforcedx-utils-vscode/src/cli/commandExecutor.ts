@@ -26,7 +26,7 @@ export class CliCommandExecutor {
 
   public constructor(command: Command, options: ExecOptions) {
     this.command = command;
-    this.options = options;
+    this.options = this.appendSfdxOptions(options);
   }
 
   public execute(cancellationToken?: CancellationToken): CommandExecution {
@@ -40,6 +40,15 @@ export class CliCommandExecutor {
       childProcess,
       cancellationToken
     );
+  }
+
+  private appendSfdxOptions(options: ExecOptions): ExecOptions {
+    const newOptions = Object.assign({}, options);
+    if (!newOptions.env) {
+      newOptions.env = Object.assign({}, process.env);
+    }
+    newOptions.env['SFDX_SET_CLIENT_IDS'] = 'sfdx-vscode';
+    return newOptions;
   }
 }
 
