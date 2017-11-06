@@ -10,7 +10,9 @@ import {
   GET_WORKSPACE_SETTINGS_EVENT,
   HOTSWAP_REQUEST,
   LINE_BREAKPOINT_INFO_REQUEST,
+  SEND_HEARTBEAT_REQUEST,
   SHOW_MESSAGE_EVENT,
+  TERMINATE_SESSION_REQUEST,
   VscodeDebuggerMessage,
   VscodeDebuggerMessageType,
   WORKSPACE_SETTINGS_REQUEST,
@@ -86,7 +88,37 @@ function registerCommands(): vscode.Disposable {
       }
     }
   );
-  return vscode.Disposable.from(customEventHandler);
+  let areYouThereIntervalId: NodeJS.Timer;
+  const sessionStartHandler = vscode.debug.onDidStartDebugSession(session => {
+    areYouThereIntervalId = setInterval(async () => {
+      setTimeout(() => {
+        session.customRequest(TERMINATE_SESSION_REQUEST);
+      }, 10000);
+      const response = await vscode.window.showWarningMessage(
+        'We noticed that you have been idle for awhile. Are you still debugging?',
+        { modal: false },
+        'Yes',
+        'No'
+      );
+      if (response && response === 'Yes') {
+        session.customRequest(SEND_HEARTBEAT_REQUEST);
+      } else {
+        session.customRequest(TERMINATE_SESSION_REQUEST);
+      }
+    }, 1 * 60 * 1000);
+  });
+  const sessionTerminateHandler = vscode.debug.onDidTerminateDebugSession(
+    session => {
+      if (areYouThereIntervalId) {
+        clearInterval(areYouThereIntervalId);
+      }
+    }
+  );
+  return vscode.Disposable.from(
+    customEventHandler,
+    sessionStartHandler,
+    sessionTerminateHandler
+  );
 }
 
 function registerFileWatchers(): vscode.Disposable {

@@ -8,6 +8,8 @@
 import * as AsyncLock from 'async-lock';
 import { basename } from 'path';
 import {
+  Breakpoint,
+  BreakpointEvent,
   DebugSession,
   Event,
   Handles,
@@ -26,6 +28,7 @@ import {
   Variable
 } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
+import { ExceptionBreakpointInfo } from '../breakpoints/exceptionBreakpoint';
 import {
   LineBreakpointInfo,
   LineBreakpointsInTyperef
@@ -54,7 +57,9 @@ import {
   GET_WORKSPACE_SETTINGS_EVENT,
   HOTSWAP_REQUEST,
   LINE_BREAKPOINT_INFO_REQUEST,
+  SEND_HEARTBEAT_REQUEST,
   SHOW_MESSAGE_EVENT,
+  TERMINATE_SESSION_REQUEST,
   WORKSPACE_SETTINGS_REQUEST
 } from '../constants';
 import {
@@ -663,6 +668,16 @@ export class ApexDebug extends LoggingDebugSession {
     this.sendResponse(response);
   }
 
+  protected async setExceptionBreakPointsRequest(
+    response: DebugProtocol.SetExceptionBreakpointsResponse,
+    args: DebugProtocol.SetExceptionBreakpointsArguments
+  ): Promise<void> {
+    if (args && args.filters) {
+      response.success = true;
+      this.sendResponse(response);
+    }
+  }
+
   protected async continueRequest(
     response: DebugProtocol.ContinueResponse,
     args: DebugProtocol.ContinueArguments
@@ -894,6 +909,14 @@ export class ApexDebug extends LoggingDebugSession {
           );
         }
         if (this.initializedResponse) {
+          const exceptionBrekapoints = [];
+          for (let i = 0; i < 50; i++) {
+            exceptionBrekapoints.push({
+              filter: `CustomException${i}`,
+              label: `CustomException${i}`,
+              default: false
+            });
+          }
           this.initializedResponse.body = {
             supportsCompletionsRequest: false,
             supportsConditionalBreakpoints: false,
@@ -923,6 +946,9 @@ export class ApexDebug extends LoggingDebugSession {
         this.myRequestService.proxyAuthorization = workspaceSettings.proxyAuth;
         this.myRequestService.connectionTimeoutMs =
           workspaceSettings.connectionTimeoutMs;
+        break;
+      case TERMINATE_SESSION_REQUEST:
+        this.sendEvent(new TerminatedEvent());
         break;
       default:
         break;
